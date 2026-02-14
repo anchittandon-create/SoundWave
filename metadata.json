@@ -1,0 +1,7 @@
+{
+  "name": "SoundWeave",
+  "description": "Professional AI-assisted music creation studio for single tracks and albums.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
