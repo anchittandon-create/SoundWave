@@ -43,27 +43,40 @@ export async function generateSynthesizedAudioBlob(durationSeconds: number): Pro
   const startOffset = 44;
   const totalSamples = Math.floor(durationSeconds * sampleRate);
 
-  const bpm = 120;
+  // Randomize parameters for unique output every time
+  const bpm = 90 + Math.random() * 60; // 90 to 150 BPM
   const beatDuration = 60 / bpm;
+  
+  const baseFreqs = [30, 40, 50, 60];
+  const subFreq = baseFreqs[Math.floor(Math.random() * baseFreqs.length)];
+  
+  const scales = [
+    [220, 261.63, 293.66, 329.63], // A minor
+    [261.63, 293.66, 329.63, 349.23], // C major
+    [196.00, 220.00, 246.94, 261.63], // G major
+    [146.83, 164.81, 174.61, 196.00]  // D minor
+  ];
+  const notes = scales[Math.floor(Math.random() * scales.length)];
+  
+  const synthEnvDecay = 2 + Math.random() * 6;
+  const noiseEnvDecay = 10 + Math.random() * 20;
   
   for (let i = 0; i < totalSamples; i++) {
     const t = i / sampleRate;
     const beatIndex = Math.floor(t / beatDuration);
     const timeInBeat = t % beatDuration;
 
-    const subFreq = 40;
     const sub = Math.sin(2 * Math.PI * subFreq * t) * 0.4;
 
     const kickEnv = Math.exp(-timeInBeat * 10);
     const kickFreq = 150 * Math.exp(-timeInBeat * 30);
     const kick = Math.sin(2 * Math.PI * kickFreq * timeInBeat) * kickEnv * 0.5;
 
-    const notes = [220, 261.63, 293.66, 329.63];
     const note = notes[beatIndex % notes.length];
-    const synthEnv = Math.exp(-(t % (beatDuration / 2)) * 5);
+    const synthEnv = Math.exp(-(t % (beatDuration / 2)) * synthEnvDecay);
     const melody = Math.sin(2 * Math.PI * note * t) * synthEnv * 0.2;
 
-    const noise = (Math.random() * 2 - 1) * Math.exp(-timeInBeat * 20) * 0.1;
+    const noise = (Math.random() * 2 - 1) * Math.exp(-timeInBeat * noiseEnvDecay) * 0.1;
 
     let signal = sub + kick + melody + noise;
     signal = Math.max(-1, Math.min(1, signal * 0.8));

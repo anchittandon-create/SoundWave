@@ -153,7 +153,7 @@ export async function generateVeoVideo(style: string, genre: string, prompt: str
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   let operation = await ai.models.generateVideos({
     model: 'veo-3.1-fast-generate-preview',
-    prompt: `Style: ${style}. Cinematic ${genre} music visual. ${prompt}`,
+    prompt: `Style: ${style}. Cinematic ${genre} music visual. ${prompt} [Seed: ${Date.now()}-${Math.random().toString(36).substring(7)}]`,
     config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
   });
 

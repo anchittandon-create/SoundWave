@@ -17,8 +17,9 @@ const GENRES = ["Ambient", "Cyberpunk", "Deep House", "Industrial", "Jazz Fusion
 const LANGUAGES = ["Instrumental", "English", "Japanese", "French", "Spanish", "German", "Korean"];
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>(AppState.KEY_SETUP);
-  const [session, setSession] = useState<UserSession | null>(null);
+  const initialSession = db.getSession();
+  const [appState, setAppState] = useState<AppState>(initialSession ? AppState.HOME : AppState.AUTH);
+  const [session, setSession] = useState<UserSession | null>(initialSession);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeTab, setActiveTab] = useState<AppState>(AppState.HOME);
 
@@ -65,17 +66,9 @@ const App: React.FC = () => {
   const [objectUrls, setObjectUrls] = useState<string[]>([]);
 
   useEffect(() => {
-    const init = async () => {
-      let s = db.getSession();
-      if (!s) {
-        s = { id: 'anon_' + Date.now(), name: 'Anonymous Maestro', mobile: '' };
-        db.saveSession(s);
-      }
-      setSession(s);
-      setAppState(AppState.HOME);
-      loadAndProcessProjects(s.id);
-    };
-    init();
+    if (initialSession) {
+      loadAndProcessProjects(initialSession.id);
+    }
 
     return () => {
       // Cleanup URLs on unmount
@@ -108,14 +101,6 @@ const App: React.FC = () => {
     setIsQuotaExhausted(false);
     // @ts-ignore
     await window.aistudio.openSelectKey();
-    const s = db.getSession();
-    if (s) {
-      setSession(s);
-      setAppState(AppState.HOME);
-      loadAndProcessProjects(s.id);
-    } else {
-      setAppState(AppState.AUTH);
-    }
   };
 
   const handleAuth = (e: React.FormEvent<HTMLFormElement>) => {
@@ -130,7 +115,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const newSession: UserSession = { id: crypto.randomUUID(), name, mobile };
+    const newSession: UserSession = { id: mobile, name, mobile };
     db.saveSession(newSession);
     setSession(newSession);
     setAppState(AppState.HOME);
@@ -340,10 +325,6 @@ const App: React.FC = () => {
     }
   };
 
-  if (appState === AppState.KEY_SETUP) {
-    return null; // Key setup uses aistudio dialog directly
-  }
-
   if (appState === AppState.AUTH) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-deep p-6">
@@ -415,7 +396,6 @@ const App: React.FC = () => {
         )}
 
         <div className={`p-8 border-t border-white/5 space-y-6 ${isSidebarCollapsed ? 'flex flex-col items-center px-4' : ''}`}>
-          {!isSidebarCollapsed && <button onClick={handleKeySetup} className="w-full text-[10px] uppercase font-black py-3 border border-brand/20 rounded-xl bg-brand/5 text-brand hover:text-white transition-all">Credentials</button>}
           {session && (
             <div className="space-y-4 w-full">
               <div className={`flex items-center group ${isSidebarCollapsed ? 'justify-center' : 'gap-4'}`}>

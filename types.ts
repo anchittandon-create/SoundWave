@@ -1,6 +1,5 @@
 
 export enum AppState {
-  KEY_SETUP = 'KEY_SETUP',
   AUTH = 'AUTH',
   HOME = 'HOME',
   CREATE = 'CREATE',
