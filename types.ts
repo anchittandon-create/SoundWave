@@ -28,8 +28,9 @@ export interface UserSession {
 export interface TrackData {
   id: string;
   title: string;
-  audioUrl: string;
-  videoUrl?: string;
+  // Use string | Blob to handle both UI display (URLs) and IndexedDB storage (Blobs)
+  audioUrl: string | Blob;
+  videoUrl?: string | Blob;
   duration: number;
 }
 

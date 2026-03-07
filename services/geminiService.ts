@@ -1,127 +1,154 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
+// Track session-wide quota status to avoid unnecessary network calls
+let isCloudQuotaExhausted = false;
+
+const LOCAL_LIBRARY: Record<string, string[]> = {
+  title: [
+    "Vaporwave Echoes", "Neon Horizon", "Subterranean Pulse", "Digital Solitude", 
+    "Midnight Transmission", "Crystalline Dreams", "Obsidian Flow", "Static Grace",
+    "Analog Drift", "Quantum Resonance", "Binary Sunset", "Ethereal Cipher"
+  ],
+  prompt: [
+    "A lush, cinematic soundscape featuring granular synth textures and a driving rhythmic pulse.",
+    "Deep, atmospheric house with ethereal vocal chops and a warm analog bassline.",
+    "Industrial techno with distorted percussion, metallic resonance, and dark ambient layers.",
+    "Lo-fi jazz fusion with bit-crushed piano, swing-heavy drums, and vinyl crackle.",
+    "Cyberpunk orchestral score combining aggressive brass sections with glitchy electronic patterns.",
+    "Minimalist ambient with sweeping pads, nature recordings, and distant bell-like melodies."
+  ],
+  lyrics: [
+    "[Verse 1] Digital ghosts in the wires / Chasing the sparks of old fires",
+    "[Chorus] We are the sound, we are the light / Weaving through the electric night",
+    "[Bridge] Lost in the static, found in the code / Taking the neon-lit road",
+    "[Verse 2] Circuits hum a lonely tune / Beneath the light of a silicon moon"
+  ],
+  videoStyle: [
+    "Anamorphic Noir", "Retro-Futuristic VHS", "Abstract Minimalist Geometry", 
+    "Biomechanical Surrealism", "Vibrant Cyber-Punk Cityscape", "Liquid Mercury Motion"
+  ]
+};
+
 /**
- * Utility to perform API calls with exponential backoff for 429 errors.
+ * Executes a call across multiple model tiers before falling back to local.
  */
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 2000): Promise<T> {
-  let delay = initialDelay;
-  for (let i = 0; i < maxRetries; i++) {
+async function callNeuralTier<T>(
+  cloudFn: (model: string) => Promise<T>, 
+  fallback: () => T
+): Promise<T> {
+  if (isCloudQuotaExhausted) return fallback();
+
+  const models = ['gemini-3-flash-preview', 'gemini-flash-lite-latest'];
+  
+  for (const model of models) {
     try {
-      return await fn();
+      return await cloudFn(model);
     } catch (error: any) {
-      const errStr = error.message || JSON.stringify(error);
-      const isQuotaError = errStr.includes("429") || errStr.includes("quota") || errStr.includes("RESOURCE_EXHAUSTED");
+      const errStr = (error.message || JSON.stringify(error)).toUpperCase();
+      const isHardQuota = errStr.includes("429") || errStr.includes("QUOTA") || errStr.includes("RESOURCE_EXHAUSTED");
       
-      if (isQuotaError && i < maxRetries - 1) {
-        console.warn(`Quota exceeded. Retrying in ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
-        continue;
+      if (isHardQuota) {
+        console.warn(`Model ${model} exhausted. Attempting next tier...`);
+        if (model === models[models.length - 1]) {
+          isCloudQuotaExhausted = true;
+          throw new Error("QUOTA_EXHAUSTED_DAILY");
+        }
+        continue; // Try next model
       }
-      throw error;
+      throw error; // Unexpected error
     }
   }
-  return fn(); // Final attempt
+  return fallback();
 }
 
+export const getIsCloudExhausted = () => isCloudQuotaExhausted;
+
 /**
- * Neural Suggestion Engine
+ * Neural Suggestion Engine with Multi-Model Fallback
  */
 export async function getFieldSuggestion(field: string, currentValue: string, context: any): Promise<string> {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const systemInstruction = `
-      You are the SoundWeave Neural Suggestion Engine.
-      Context:
-      - User Mode: ${context.mode}
-      - Field: ${field}
-      - Current Progress: ${JSON.stringify(context)}
+  const getLocal = () => {
+    const options = LOCAL_LIBRARY[field] || ["New Creative Wave", "Neural Flux"];
+    return options[Math.floor(Math.random() * options.length)];
+  };
 
-      Task:
-      - If empty (Generate Mode): Produce a high-quality, professional, and evocative suggestion.
-      - If filled (Enhance Mode): Refine the user's input for clarity and emotional weight.
-      
-      Constraint: Return ONLY the text suggestion. No intros, no quotes, no explanations.
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Suggestion for "${field}". Current value: "${currentValue}"`,
-      config: {
-        systemInstruction,
-        temperature: 0.8,
-      }
-    });
-
-    return response.text.trim();
-  });
+  try {
+    return await callNeuralTier(async (modelName) => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const systemInstruction = `You are the SoundWeave Studio assistant. Return ONLY a single text suggestion for the field: ${field}. No quotes.`;
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `Suggestion for "${field}". Progress: ${JSON.stringify(context)}`,
+        config: { systemInstruction, temperature: 0.9 }
+      });
+      return response.text.trim().replace(/^["']|["']$/g, '');
+    }, getLocal);
+  } catch (e: any) {
+    return getLocal();
+  }
 }
 
 /**
- * Creative Intent Interpreter
+ * Intent Interpreter with Multi-Model Fallback
  */
 export async function interpretIntent(project: any) {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Analyze this music production intent and return strictly valid JSON: ${JSON.stringify(project)}`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            mood: { type: Type.STRING, description: "One word mood descriptor" },
-            energyLevel: { type: Type.NUMBER, description: "0-100 scale" },
-            atmosphere: { type: Type.STRING },
-            technicalNotes: { type: Type.STRING, description: "Brief production notes for the synthesizer" }
-          },
-          required: ["mood", "energyLevel", "technicalNotes"]
-        }
-      }
-    });
-    
-    return JSON.parse(response.text.trim());
+  const getLocal = () => ({
+    mood: "Adaptive",
+    energyLevel: 70,
+    atmosphere: "Studio Default",
+    technicalNotes: "Offline local engine active. Using optimized generic synthesis parameters."
   });
+
+  try {
+    return await callNeuralTier(async (modelName) => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `Analyze intent JSON: ${JSON.stringify(project)}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              mood: { type: Type.STRING },
+              energyLevel: { type: Type.NUMBER },
+              technicalNotes: { type: Type.STRING }
+            },
+            required: ["mood", "energyLevel", "technicalNotes"]
+          }
+        }
+      });
+      return JSON.parse(response.text.trim());
+    }, getLocal);
+  } catch (e: any) {
+    return getLocal();
+  }
 }
 
 /**
- * Visual Synthesis (Veo)
+ * Visual Synthesis (Veo) - No local fallback for video, but handles quota
  */
-export async function generateVeoVideo(style: string, genre: string, prompt: string): Promise<string> {
-  // Veo operations involve polling, so we don't retry the initiation here
-  // unless the initial request itself fails with 429.
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: `Cinematic visual for ${genre} music. Style: ${style}. Concept: ${prompt}. Professional, high fidelity, 4k texture, immersive environment.`,
-      config: {
-        numberOfVideos: 1,
-        resolution: '720p',
-        aspectRatio: '16:9'
-      }
-    });
+export async function generateVeoVideo(style: string, genre: string, prompt: string): Promise<Blob> {
+  if (isCloudQuotaExhausted) throw new Error("QUOTA_EXHAUSTED_DAILY");
 
-    while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 8000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
-    }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-    
-    if (!response.ok) {
-       const errorBody = await response.text();
-       if (errorBody.includes("Requested entity was not found")) {
-          throw new Error("KEY_RESET_REQUIRED");
-       }
-       throw new Error("Video download failed: " + response.statusText);
-    }
-    
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  let operation = await ai.models.generateVideos({
+    model: 'veo-3.1-fast-generate-preview',
+    prompt: `Style: ${style}. Cinematic ${genre} music visual. ${prompt}`,
+    config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
   });
+
+  while (!operation.done) {
+    await new Promise(resolve => setTimeout(resolve, 8000));
+    operation = await ai.operations.getVideosOperation({ operation: operation });
+  }
+
+  const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+  const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+  if (!response.ok) throw new Error("Video Download Error");
+  const rawBlob = await response.blob();
+  
+  // Explicitly set MIME type for cross-browser playback support
+  return new Blob([rawBlob], { type: 'video/mp4' });
 }
