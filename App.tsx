@@ -66,20 +66,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const init = async () => {
-      // @ts-ignore
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (hasKey) {
-        const s = db.getSession();
-        if (s) {
-          setSession(s);
-          setAppState(AppState.HOME);
-          loadAndProcessProjects(s.id);
-        } else {
-          setAppState(AppState.AUTH);
-        }
-      } else {
-        setAppState(AppState.KEY_SETUP);
+      let s = db.getSession();
+      if (!s) {
+        s = { id: 'anon_' + Date.now(), name: 'Anonymous Maestro', mobile: '' };
+        db.saveSession(s);
       }
+      setSession(s);
+      setAppState(AppState.HOME);
+      loadAndProcessProjects(s.id);
     };
     init();
 
@@ -346,44 +340,8 @@ const App: React.FC = () => {
     }
   };
 
-  if (appState === AppState.KEY_SETUP) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-deep p-6">
-        <div className="glass w-full max-w-lg p-12 rounded-[3rem] space-y-10 border border-white/5 shadow-2xl text-center">
-          <div className="space-y-4">
-            <h1 className="text-4xl font-black tracking-tighter text-white">Neural Uplink</h1>
-            <p className="text-zinc-500 text-sm font-medium leading-relaxed">SoundWeave requires a Google Cloud API key for high-fidelity synthesis.</p>
-          </div>
-          <button onClick={handleKeySetup} className="w-full bg-brand py-6 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand/20">Configure API Key</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (appState === AppState.AUTH) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-deep p-6">
-        <div className="glass w-full max-w-md p-10 rounded-[2.5rem] space-y-10 border border-white/5 shadow-2xl">
-          <div className="text-center space-y-2">
-            <h1 className="text-5xl font-black tracking-tighter text-white">SOUNDWEAVE</h1>
-            <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em]">Neural Music Studio</p>
-          </div>
-          <form onSubmit={handleAuth} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Identity</label>
-                <input name="name" required className="w-full bg-surface border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand/50 transition-all placeholder-zinc-800" placeholder="Maestro Name" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Mobile Access</label>
-                <input name="mobile" type="tel" required className="w-full bg-surface border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand/50 transition-all placeholder-zinc-800" placeholder="+91 9876543210" />
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-brand py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand/20">Initialize Workspace</button>
-          </form>
-        </div>
-      </div>
-    );
+  if (appState === AppState.KEY_SETUP || appState === AppState.AUTH) {
+    return null; // These states are no longer used for full screen blocking
   }
 
   return (
