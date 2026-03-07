@@ -54,10 +54,12 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState<'ALL' | 'ALBUMS' | 'SONGS'>('ALL');
   const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
   const [aiUsedFields, setAiUsedFields] = useState<Set<string>>(new Set());
   const [globalError, setGlobalError] = useState<{ message: string; isQuota: boolean; isHardLimit: boolean } | null>(null);
   const [isQuotaExhausted, setIsQuotaExhausted] = useState(false);
+  const [playingTrack, setPlayingTrack] = useState<{track: TrackData, project: ProjectRecord} | null>(null);
 
   // Keep track of active object URLs to clean up if needed
   const [objectUrls, setObjectUrls] = useState<string[]>([]);
@@ -411,7 +413,7 @@ const App: React.FC = () => {
         <nav className="flex-1 px-6 space-y-1">
           <NavItem active={activeTab === AppState.HOME} onClick={() => { setActiveTab(AppState.HOME); setIsMobileMenuOpen(false); }} icon="🏠" label="Home" collapsed={isSidebarCollapsed} />
           <NavItem active={activeTab === AppState.CREATE} onClick={() => { setActiveTab(AppState.CREATE); setIsMobileMenuOpen(false); }} icon="✨" label="Studio" collapsed={isSidebarCollapsed} />
-          <NavItem active={activeTab === AppState.DASHBOARD} onClick={() => { setActiveTab(AppState.DASHBOARD); setIsMobileMenuOpen(false); }} icon="📂" label="Workspace" collapsed={isSidebarCollapsed} />
+          <NavItem active={activeTab === AppState.DASHBOARD} onClick={() => { setActiveTab(AppState.DASHBOARD); setIsMobileMenuOpen(false); }} icon="📂" label="Dashboard" collapsed={isSidebarCollapsed} />
         </nav>
         
         {!isSidebarCollapsed && (
@@ -494,7 +496,7 @@ const App: React.FC = () => {
                   <p className="text-zinc-500 text-xs md:text-sm font-medium">Construct new audio signatures from creative prompts.</p>
                 </button>
                 <button onClick={() => setActiveTab(AppState.DASHBOARD)} className="glass p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] text-left hover:border-brand/40 transition-all group relative overflow-hidden">
-                  <h3 className="text-2xl md:text-3xl font-black mb-2 md:mb-3">Workspace</h3>
+                  <h3 className="text-2xl md:text-3xl font-black mb-2 md:mb-3">Dashboard</h3>
                   <p className="text-zinc-500 text-xs md:text-sm font-medium">Audit existing productions and archives.</p>
                 </button>
               </div>
@@ -709,59 +711,150 @@ const App: React.FC = () => {
 
           {activeTab === AppState.DASHBOARD && (
             <div className="space-y-10 md:space-y-16 py-6 md:py-10 animate-in fade-in duration-700">
-              <header className="flex justify-between items-end border-b border-white/5 pb-6 md:pb-10">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tighter">Archive</h2>
+              <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/5 pb-6 md:pb-10 gap-6">
+                <h2 className="text-4xl md:text-5xl font-black tracking-tighter">Dashboard</h2>
+                <div className="flex bg-surface/50 p-1 rounded-2xl border border-white/5">
+                  <button onClick={() => setDashboardTab('ALL')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${dashboardTab === 'ALL' ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-zinc-500 hover:text-white'}`}>All</button>
+                  <button onClick={() => setDashboardTab('ALBUMS')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${dashboardTab === 'ALBUMS' ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-zinc-500 hover:text-white'}`}>Albums</button>
+                  <button onClick={() => setDashboardTab('SONGS')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${dashboardTab === 'SONGS' ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-zinc-500 hover:text-white'}`}>Songs</button>
+                </div>
               </header>
 
-              {projects.length === 0 ? (
+              {projects.filter(p => dashboardTab === 'ALL' || (dashboardTab === 'ALBUMS' && p.mode === CreationMode.ALBUM) || (dashboardTab === 'SONGS' && p.mode === CreationMode.SINGLE)).length === 0 ? (
                 <div className="text-center py-24 md:py-48 border-4 border-dashed border-white/5 rounded-[2rem] md:rounded-[4rem]">
-                  <p className="text-zinc-800 text-xs md:text-sm font-black uppercase tracking-[0.5em]">Empty Workspace</p>
+                  <p className="text-zinc-800 text-xs md:text-sm font-black uppercase tracking-[0.5em]">Empty Dashboard</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-6">
-                  {projects.map(p => (
-                    <div key={p.id} className="glass p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-white/5 hover:border-white/10 transition-all group">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 md:mb-10 gap-4">
-                        <div>
-                          <h4 className="text-2xl md:text-3xl font-black tracking-tighter text-white">{p.title}</h4>
-                          <div className="text-[9px] md:text-[10px] font-bold text-zinc-600 uppercase tracking-widest mt-2">{p.genres.join(', ')} • {new Date(p.createdAt).toLocaleDateString()}</div>
-                        </div>
-                        {p.metadata && <span className="text-brand font-black text-[10px] md:text-xs uppercase tracking-widest self-start md:self-auto">{p.metadata.mood}</span>}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {p.tracks.map((t) => (
-                          <div key={t.id} className="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-6 overflow-hidden">
-                             <div className="aspect-video bg-zinc-900 rounded-2xl overflow-hidden relative group/video">
-                                {t.videoUrl ? (
-                                  <video 
-                                    src={t.videoUrl as string} 
-                                    className="w-full h-full object-cover" 
-                                    loop 
-                                    muted 
-                                    autoPlay 
-                                    playsInline 
-                                    onError={(e) => console.error("Video load error:", e)}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center opacity-10 text-4xl">🎵</div>
-                                )}
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/video:opacity-100 transition-opacity flex items-center justify-center">
-                                   <button onClick={() => new Audio(t.audioUrl as string).play()} className="w-14 h-14 rounded-full bg-brand text-white flex items-center justify-center shadow-xl shadow-brand/40">▶</button>
+                <div className="space-y-12">
+                  {(dashboardTab === 'ALL' || dashboardTab === 'ALBUMS') && projects.filter(p => p.mode === CreationMode.ALBUM).length > 0 && (
+                    <div className="space-y-6">
+                      {dashboardTab === 'ALL' && <h3 className="text-xl font-black uppercase tracking-widest text-zinc-500">Albums</h3>}
+                      <div className="grid grid-cols-1 gap-6">
+                        {projects.filter(p => p.mode === CreationMode.ALBUM).map(p => (
+                          <div key={p.id} className="glass p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-white/5 hover:border-white/10 transition-all group">
+                            <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 md:mb-10 gap-4">
+                              <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="bg-white/10 text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md">Album</span>
+                                  <h4 className="text-2xl md:text-3xl font-black tracking-tighter text-white">{p.title}</h4>
                                 </div>
-                             </div>
-                             <p className="text-[10px] font-black uppercase text-white truncate px-1">{t.title}</p>
+                                <div className="text-[9px] md:text-[10px] font-bold text-zinc-600 uppercase tracking-widest">{p.genres.join(', ')} • {new Date(p.createdAt).toLocaleDateString()}</div>
+                              </div>
+                              {p.metadata && <span className="text-brand font-black text-[10px] md:text-xs uppercase tracking-widest self-start md:self-auto">{p.metadata.mood}</span>}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {p.tracks.map((t) => (
+                                <div key={t.id} className="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-6 overflow-hidden">
+                                   <div className="aspect-video bg-zinc-900 rounded-2xl overflow-hidden relative group/video">
+                                      {t.videoUrl ? (
+                                        <video 
+                                          src={t.videoUrl as string} 
+                                          className="w-full h-full object-cover" 
+                                          loop 
+                                          muted 
+                                          autoPlay 
+                                          playsInline 
+                                          onError={(e) => console.error("Video load error:", e)}
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center opacity-10 text-4xl">🎵</div>
+                                      )}
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/video:opacity-100 transition-opacity flex items-center justify-center">
+                                         <button onClick={() => setPlayingTrack({ track: t, project: p })} className="w-14 h-14 rounded-full bg-brand text-white flex items-center justify-center shadow-xl shadow-brand/40">▶</button>
+                                      </div>
+                                   </div>
+                                   <p className="text-[10px] font-black uppercase text-white truncate px-1">{t.title}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                  )}
+
+                  {(dashboardTab === 'ALL' || dashboardTab === 'SONGS') && projects.filter(p => p.mode === CreationMode.SINGLE).length > 0 && (
+                    <div className="space-y-6">
+                      {dashboardTab === 'ALL' && <h3 className="text-xl font-black uppercase tracking-widest text-zinc-500">Songs</h3>}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {projects.filter(p => p.mode === CreationMode.SINGLE).map(p => {
+                          const t = p.tracks[0];
+                          if (!t) return null;
+                          return (
+                            <div key={p.id} className="glass border border-white/5 p-6 rounded-[2rem] space-y-6 overflow-hidden hover:border-white/10 transition-all group">
+                               <div className="aspect-video bg-zinc-900 rounded-2xl overflow-hidden relative group/video">
+                                  {t.videoUrl ? (
+                                    <video 
+                                      src={t.videoUrl as string} 
+                                      className="w-full h-full object-cover" 
+                                      loop 
+                                      muted 
+                                      autoPlay 
+                                      playsInline 
+                                      onError={(e) => console.error("Video load error:", e)}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center opacity-10 text-4xl">🎵</div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/video:opacity-100 transition-opacity flex items-center justify-center">
+                                     <button onClick={() => setPlayingTrack({ track: t, project: p })} className="w-14 h-14 rounded-full bg-brand text-white flex items-center justify-center shadow-xl shadow-brand/40">▶</button>
+                                  </div>
+                               </div>
+                               <div>
+                                 <p className="text-lg font-black text-white truncate px-1">{p.title}</p>
+                                 <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mt-2 px-1">{p.genres.join(', ')} • {new Date(p.createdAt).toLocaleDateString()}</div>
+                               </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
       </main>
+
+      {/* Player View Modal */}
+      {playingTrack && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col animate-in fade-in duration-500">
+          <div className="p-8 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+            <div>
+              <h3 className="text-2xl font-black text-white">{playingTrack.track.title}</h3>
+              <p className="text-brand font-bold uppercase tracking-widest text-xs mt-1">{playingTrack.project.title}</p>
+            </div>
+            <button onClick={() => setPlayingTrack(null)} className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all">
+              ✕
+            </button>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-center p-8">
+            {playingTrack.track.videoUrl ? (
+              <video 
+                src={playingTrack.track.videoUrl as string} 
+                controls 
+                autoPlay 
+                className="max-w-[90vw] max-h-[80vh] rounded-2xl shadow-2xl shadow-brand/20"
+              />
+            ) : (
+              <div className="w-full max-w-2xl glass p-12 rounded-[3rem] flex flex-col items-center gap-12">
+                <div className="w-48 h-48 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center shadow-2xl shadow-brand/40 animate-pulse">
+                  <span className="text-6xl">🎵</span>
+                </div>
+                <audio 
+                  src={playingTrack.track.audioUrl as string} 
+                  controls 
+                  autoPlay 
+                  className="w-full"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
