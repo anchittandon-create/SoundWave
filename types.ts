@@ -34,6 +34,17 @@ export interface TrackData {
   duration: number;
 }
 
+export interface TrackConfig {
+  title: string;
+  prompt: string;
+  genres: string[];
+  vocalLanguages: string[];
+  lyrics: string;
+  durationSeconds: number;
+  videoEnabled: boolean;
+  videoStyle?: string;
+}
+
 export interface ProjectRecord {
   id: string;
   userId: string;
@@ -41,6 +52,7 @@ export interface ProjectRecord {
   title: string;
   prompt: string;
   albumPrompts?: string[];
+  albumTracks?: TrackConfig[];
   genres: string[];
   durationSeconds: number;
   vocalLanguages: string[];

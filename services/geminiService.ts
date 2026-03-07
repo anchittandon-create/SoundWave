@@ -67,9 +67,10 @@ export const getIsCloudExhausted = () => isCloudQuotaExhausted;
 /**
  * Neural Suggestion Engine with Multi-Model Fallback
  */
-export async function getFieldSuggestion(field: string, currentValue: string, context: any): Promise<string> {
+export async function getFieldSuggestion(field: string, currentValue: string, context: any, action: 'new' | 'enhance' = 'new'): Promise<string> {
   const getLocal = () => {
-    const options = LOCAL_LIBRARY[field] || ["New Creative Wave", "Neural Flux"];
+    const baseField = field.includes('_') ? field.split('_').pop()! : field;
+    const options = LOCAL_LIBRARY[baseField] || ["New Creative Wave", "Neural Flux"];
     return options[Math.floor(Math.random() * options.length)];
   };
 
@@ -77,9 +78,13 @@ export async function getFieldSuggestion(field: string, currentValue: string, co
     return await callNeuralTier(async (modelName) => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       const systemInstruction = `You are the SoundWeave Studio assistant. Return ONLY a single text suggestion for the field: ${field}. No quotes.`;
+      const promptText = action === 'enhance' && currentValue 
+        ? `Enhance and improve the following "${field}": "${currentValue}". Context: ${JSON.stringify(context)}`
+        : `Generate a new, creative suggestion for "${field}". Context: ${JSON.stringify(context)}`;
+        
       const response = await ai.models.generateContent({
         model: modelName,
-        contents: `Suggestion for "${field}". Progress: ${JSON.stringify(context)}`,
+        contents: promptText,
         config: { systemInstruction, temperature: 0.9 }
       });
       return response.text.trim().replace(/^["']|["']$/g, '');
