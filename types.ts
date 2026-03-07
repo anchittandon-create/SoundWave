@@ -40,6 +40,7 @@ export interface ProjectRecord {
   mode: CreationMode;
   title: string;
   prompt: string;
+  albumPrompts?: string[];
   genres: string[];
   durationSeconds: number;
   vocalLanguages: string[];

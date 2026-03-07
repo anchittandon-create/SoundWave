@@ -25,6 +25,7 @@ const App: React.FC = () => {
   // Form State
   const [mode, setMode] = useState<CreationMode>(CreationMode.SINGLE);
   const [numSongs, setNumSongs] = useState(3);
+  const [albumPrompts, setAlbumPrompts] = useState<string[]>(['', '', '']);
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -37,6 +38,7 @@ const App: React.FC = () => {
   // UI State
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [suggestingField, setSuggestingField] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<SuggestionState | null>(null);
   const [globalError, setGlobalError] = useState<{ message: string; isQuota: boolean; isHardLimit: boolean } | null>(null);
@@ -162,10 +164,35 @@ const App: React.FC = () => {
     const { field, suggested } = suggestion;
     if (field === 'title') setTitle(suggested);
     if (field === 'prompt') setPrompt(suggested);
+    if (field.startsWith('albumPrompt_')) {
+      const index = parseInt(field.split('_')[1]);
+      setAlbumPrompts(prev => {
+        const newPrompts = [...prev];
+        newPrompts[index] = suggested;
+        return newPrompts;
+      });
+    }
     if (field === 'lyrics') setLyrics(suggested);
     if (field === 'videoStyle') setVideoStyle(suggested);
-    if (field === 'numSongs') setNumSongs(parseInt(suggested) || 3);
+    if (field === 'numSongs') {
+      const val = parseInt(suggested) || 3;
+      handleNumSongsChange(val);
+    }
     setSuggestion(null);
+  };
+
+  const handleNumSongsChange = (val: number) => {
+    const validVal = Math.max(1, Math.min(10, val));
+    setNumSongs(validVal);
+    setAlbumPrompts(prev => {
+      const newPrompts = [...prev];
+      if (validVal > prev.length) {
+        for (let i = prev.length; i < validVal; i++) newPrompts.push('');
+      } else {
+        newPrompts.length = validVal;
+      }
+      return newPrompts;
+    });
   };
 
   const startGeneration = async () => {
@@ -174,8 +201,12 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!title || !prompt || selectedGenres.length === 0) {
+    if (!title || (mode === CreationMode.SINGLE && !prompt) || selectedGenres.length === 0) {
       alert("Please provide Title, Creative Brief, and Genres.");
+      return;
+    }
+    if (mode === CreationMode.ALBUM && albumPrompts.some(p => !p.trim())) {
+      alert("Please provide a prompt for each song in the album.");
       return;
     }
 
@@ -186,6 +217,7 @@ const App: React.FC = () => {
       id: projectId,
       userId: session.id,
       mode, title, prompt, 
+      albumPrompts: mode === CreationMode.ALBUM ? albumPrompts : undefined,
       genres: selectedGenres,
       durationSeconds: duration,
       vocalLanguages: vocalLangs,
@@ -206,11 +238,12 @@ const App: React.FC = () => {
       const tracks: TrackData[] = [];
 
       for (let i = 0; i < trackCount; i++) {
+        const currentPrompt = mode === CreationMode.ALBUM ? albumPrompts[i] : prompt;
         const audioBlob = await generateSynthesizedAudioBlob(duration);
         let videoBlob: any = undefined;
         if (videoEnabled && !isQuotaExhausted) {
           try {
-            videoBlob = await generateVeoVideo(videoStyle || "Minimalist", selectedGenres[0], prompt);
+            videoBlob = await generateVeoVideo(videoStyle || "Minimalist", selectedGenres[0], currentPrompt);
           } catch (veoErr) {
             console.warn("Video failed, continuing with audio only.");
           }
@@ -294,21 +327,32 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-deep font-sans selection:bg-brand selection:text-white">
+      {/* Mobile Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Nav */}
-      <aside className={`${isSidebarCollapsed ? 'w-24' : 'w-80'} border-r border-white/5 bg-[#070707] flex flex-col sticky top-0 h-screen transition-all duration-300 z-20`}>
+      <aside className={`fixed md:sticky top-0 h-screen z-50 ${isSidebarCollapsed ? 'w-24' : 'w-80'} border-r border-white/5 bg-[#070707] flex flex-col transition-all duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'p-6 flex-col gap-6' : 'p-10 justify-between'}`}>
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-8 h-8 shrink-0 rounded-lg bg-brand flex items-center justify-center font-black text-white italic">S</div>
             {!isSidebarCollapsed && <h2 className="text-2xl font-black tracking-tighter text-white whitespace-nowrap">SOUNDWEAVE</h2>}
           </div>
-          <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="text-zinc-500 hover:text-white transition-colors shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+          <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:flex text-zinc-500 hover:text-white transition-colors shrink-0 w-8 h-8 items-center justify-center rounded-lg hover:bg-white/5">
             {isSidebarCollapsed ? '▶' : '◀'}
+          </button>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-zinc-500 hover:text-white transition-colors shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+            ✕
           </button>
         </div>
         <nav className="flex-1 px-6 space-y-1">
-          <NavItem active={activeTab === AppState.HOME} onClick={() => setActiveTab(AppState.HOME)} icon="🏠" label="Home" collapsed={isSidebarCollapsed} />
-          <NavItem active={activeTab === AppState.CREATE} onClick={() => setActiveTab(AppState.CREATE)} icon="✨" label="Studio" collapsed={isSidebarCollapsed} />
-          <NavItem active={activeTab === AppState.DASHBOARD} onClick={() => setActiveTab(AppState.DASHBOARD)} icon="📂" label="Workspace" collapsed={isSidebarCollapsed} />
+          <NavItem active={activeTab === AppState.HOME} onClick={() => { setActiveTab(AppState.HOME); setIsMobileMenuOpen(false); }} icon="🏠" label="Home" collapsed={isSidebarCollapsed} />
+          <NavItem active={activeTab === AppState.CREATE} onClick={() => { setActiveTab(AppState.CREATE); setIsMobileMenuOpen(false); }} icon="✨" label="Studio" collapsed={isSidebarCollapsed} />
+          <NavItem active={activeTab === AppState.DASHBOARD} onClick={() => { setActiveTab(AppState.DASHBOARD); setIsMobileMenuOpen(false); }} icon="📂" label="Workspace" collapsed={isSidebarCollapsed} />
         </nav>
         
         {!isSidebarCollapsed && (
@@ -345,8 +389,19 @@ const App: React.FC = () => {
       </aside>
 
       {/* Content Area */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-16 relative">
+      <main className="flex-1 overflow-y-auto w-full">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-6 border-b border-white/5 sticky top-0 bg-deep/80 backdrop-blur-md z-30">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center font-black text-white italic">S</div>
+            <h2 className="text-xl font-black tracking-tighter text-white">SOUNDWEAVE</h2>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(true)} className="text-white p-2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div className="max-w-6xl mx-auto p-6 md:p-10 lg:p-16 relative">
           
           {globalError && (
             <div className="mb-10 animate-in slide-in-from-top-4 duration-500">
@@ -367,60 +422,110 @@ const App: React.FC = () => {
           )}
 
           {activeTab === AppState.HOME && (
-            <div className="space-y-16 py-10 animate-in fade-in duration-1000">
+            <div className="space-y-10 md:space-y-16 py-6 md:py-10 animate-in fade-in duration-1000">
               <div className="space-y-4">
-                <h1 className="text-8xl font-black tracking-tighter leading-none">
+                <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-none">
                   Neural <br/><span className="text-brand">Soundscapes.</span>
                 </h1>
-                <p className="text-zinc-500 text-lg max-w-xl font-medium">Professional-grade AI music synthesis for modern creators.</p>
+                <p className="text-zinc-500 text-base md:text-lg max-w-xl font-medium">Professional-grade AI music synthesis for modern creators.</p>
               </div>
-              <div className="grid grid-cols-2 gap-8">
-                <button onClick={() => setActiveTab(AppState.CREATE)} className="glass p-12 rounded-[3rem] text-left hover:border-brand/40 transition-all group relative overflow-hidden">
-                  <h3 className="text-3xl font-black mb-3">Initiate Project</h3>
-                  <p className="text-zinc-500 text-sm font-medium">Construct new audio signatures from creative prompts.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                <button onClick={() => setActiveTab(AppState.CREATE)} className="glass p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] text-left hover:border-brand/40 transition-all group relative overflow-hidden">
+                  <h3 className="text-2xl md:text-3xl font-black mb-2 md:mb-3">Initiate Project</h3>
+                  <p className="text-zinc-500 text-xs md:text-sm font-medium">Construct new audio signatures from creative prompts.</p>
                 </button>
-                <button onClick={() => setActiveTab(AppState.DASHBOARD)} className="glass p-12 rounded-[3rem] text-left hover:border-brand/40 transition-all group relative overflow-hidden">
-                  <h3 className="text-3xl font-black mb-3">Workspace</h3>
-                  <p className="text-zinc-500 text-sm font-medium">Audit existing productions and archives.</p>
+                <button onClick={() => setActiveTab(AppState.DASHBOARD)} className="glass p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] text-left hover:border-brand/40 transition-all group relative overflow-hidden">
+                  <h3 className="text-2xl md:text-3xl font-black mb-2 md:mb-3">Workspace</h3>
+                  <p className="text-zinc-500 text-xs md:text-sm font-medium">Audit existing productions and archives.</p>
                 </button>
               </div>
             </div>
           )}
 
           {activeTab === AppState.CREATE && (
-            <div className={`space-y-16 animate-in fade-in duration-700 ${isProcessing ? 'pointer-events-none' : ''}`}>
-              <header className="flex justify-between items-end border-b border-white/5 pb-10">
+            <div className={`space-y-10 md:space-y-16 animate-in fade-in duration-700 ${isProcessing ? 'pointer-events-none' : ''}`}>
+              <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 border-b border-white/5 pb-6 md:pb-10">
                 <div>
-                  <h2 className="text-5xl font-black tracking-tighter">Studio Deck</h2>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter">Studio Deck</h2>
                   <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.4em] mt-2">New Neural Synthesis Intent</p>
                 </div>
                 {isProcessing && (
-                  <div className="flex items-center gap-4 bg-brand/10 border border-brand/20 px-6 py-3 rounded-2xl">
+                  <div className="flex items-center gap-4 bg-brand/10 border border-brand/20 px-6 py-3 rounded-2xl self-start md:self-auto">
                     <span className="w-2 h-2 rounded-full bg-brand animate-ping"></span>
                     <span className="text-[10px] font-black text-brand uppercase tracking-widest">Synthesizing Signal...</span>
                   </div>
                 )}
               </header>
 
-              <div className="grid grid-cols-12 gap-16">
-                <div className="col-span-12 lg:col-span-8 space-y-16">
-                  <section className="space-y-10">
-                    <Field label="Project Title" value={title} onChange={setTitle} onSuggest={() => requestSuggestion('title', title)} suggesting={suggestingField === 'title'} exhausted={isQuotaExhausted} placeholder="e.g. Midnight Drift" />
-                    <Field label="Creative Brief" isTextArea value={prompt} onChange={setPrompt} onSuggest={() => requestSuggestion('prompt', prompt)} suggesting={suggestingField === 'prompt'} exhausted={isQuotaExhausted} placeholder="Describe the sonic atmosphere..." />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16">
+                <div className="col-span-1 lg:col-span-8 space-y-10 md:space-y-16">
+                  <section className="space-y-8 md:space-y-10">
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Creation Mode</label>
+                      <div className="flex gap-4">
+                        <button 
+                          onClick={() => setMode(CreationMode.SINGLE)} 
+                          className={`flex-1 py-4 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${mode === CreationMode.SINGLE ? 'bg-brand border-brand text-white' : 'border-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Single Track
+                        </button>
+                        <button 
+                          onClick={() => setMode(CreationMode.ALBUM)} 
+                          className={`flex-1 py-4 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${mode === CreationMode.ALBUM ? 'bg-brand border-brand text-white' : 'border-white/5 text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          Album
+                        </button>
+                      </div>
+                    </div>
+
+                    <Field label={mode === CreationMode.ALBUM ? "Album Title" : "Project Title"} value={title} onChange={setTitle} onSuggest={() => requestSuggestion('title', title)} suggesting={suggestingField === 'title'} exhausted={isQuotaExhausted} placeholder={mode === CreationMode.ALBUM ? "e.g. Neon Nights EP" : "e.g. Midnight Drift"} />
+                    
+                    {mode === CreationMode.SINGLE ? (
+                      <Field label="Creative Brief" isTextArea value={prompt} onChange={setPrompt} onSuggest={() => requestSuggestion('prompt', prompt)} suggesting={suggestingField === 'prompt'} exhausted={isQuotaExhausted} placeholder="Describe the sonic atmosphere..." />
+                    ) : (
+                      <div className="space-y-8">
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center px-1">
+                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-700">Number of Songs</label>
+                             <span className="text-brand font-black">{numSongs}</span>
+                           </div>
+                           <input type="range" min="2" max="10" step="1" value={numSongs} onChange={e => handleNumSongsChange(parseInt(e.target.value))} className="w-full h-1.5 bg-white/5 accent-brand rounded-full cursor-none appearance-none" />
+                        </div>
+                        <div className="space-y-6">
+                          {albumPrompts.map((p, i) => (
+                            <Field 
+                              key={i}
+                              label={`Track ${i + 1} Brief`} 
+                              isTextArea 
+                              value={p} 
+                              onChange={(val: string) => {
+                                const newPrompts = [...albumPrompts];
+                                newPrompts[i] = val;
+                                setAlbumPrompts(newPrompts);
+                              }} 
+                              onSuggest={() => requestSuggestion(`albumPrompt_${i}`, p)} 
+                              suggesting={suggestingField === `albumPrompt_${i}`} 
+                              exhausted={isQuotaExhausted} 
+                              placeholder={`Describe track ${i + 1}...`} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </section>
 
-                  <section className="space-y-8">
+                  <section className="space-y-6 md:space-y-8">
                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Genre Constraints</label>
                     <div className="flex flex-wrap gap-2">
                       {GENRES.map(g => (
-                        <button key={g} onClick={() => setSelectedGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${selectedGenres.includes(g) ? 'bg-brand border-brand text-white' : 'border-white/5 text-zinc-700 hover:text-zinc-400'}`}>
+                        <button key={g} onClick={() => setSelectedGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])} className={`px-4 py-2 md:px-5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest border transition-all ${selectedGenres.includes(g) ? 'bg-brand border-brand text-white' : 'border-white/5 text-zinc-700 hover:text-zinc-400'}`}>
                           {g}
                         </button>
                       ))}
                     </div>
                   </section>
 
-                  <section className="grid grid-cols-2 gap-8">
+                  <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-6">
                       <div className="flex items-center gap-4 mb-2">
                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Visual synthesis</label>
@@ -430,7 +535,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {LANGUAGES.map(l => (
-                          <button key={l} onClick={() => setVocalLangs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])} className={`px-4 py-4 rounded-xl border text-[9px] font-black uppercase tracking-tighter transition-all ${vocalLangs.includes(l) ? 'border-brand bg-brand/5 text-white' : 'border-white/5 text-zinc-800'}`}>
+                          <button key={l} onClick={() => setVocalLangs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])} className={`px-3 py-3 md:px-4 md:py-4 rounded-xl border text-[8px] md:text-[9px] font-black uppercase tracking-tighter transition-all ${vocalLangs.includes(l) ? 'border-brand bg-brand/5 text-white' : 'border-white/5 text-zinc-800'}`}>
                             {l}
                           </button>
                         ))}
@@ -440,8 +545,8 @@ const App: React.FC = () => {
                   </section>
                 </div>
 
-                <div className="col-span-12 lg:col-span-4 space-y-12">
-                   <section className="glass p-10 rounded-[2.5rem] space-y-8">
+                <div className="col-span-1 lg:col-span-4 space-y-8 md:space-y-12">
+                   <section className="glass p-8 md:p-10 rounded-[2rem] md:rounded-[2.5rem] space-y-8">
                       <div className="flex justify-between items-end">
                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Duration</label>
                         <div className="text-3xl font-black text-brand tracking-tighter">{Math.floor(duration/60)}<span className="text-xs text-zinc-700 ml-1 uppercase">m</span> {duration%60}<span className="text-xs text-zinc-700 ml-1 uppercase">s</span></div>
@@ -461,25 +566,25 @@ const App: React.FC = () => {
           )}
 
           {activeTab === AppState.DASHBOARD && (
-            <div className="space-y-16 py-10 animate-in fade-in duration-700">
-              <header className="flex justify-between items-end border-b border-white/5 pb-10">
-                <h2 className="text-5xl font-black tracking-tighter">Archive</h2>
+            <div className="space-y-10 md:space-y-16 py-6 md:py-10 animate-in fade-in duration-700">
+              <header className="flex justify-between items-end border-b border-white/5 pb-6 md:pb-10">
+                <h2 className="text-4xl md:text-5xl font-black tracking-tighter">Archive</h2>
               </header>
 
               {projects.length === 0 ? (
-                <div className="text-center py-48 border-4 border-dashed border-white/5 rounded-[4rem]">
-                  <p className="text-zinc-800 text-sm font-black uppercase tracking-[0.5em]">Empty Workspace</p>
+                <div className="text-center py-24 md:py-48 border-4 border-dashed border-white/5 rounded-[2rem] md:rounded-[4rem]">
+                  <p className="text-zinc-800 text-xs md:text-sm font-black uppercase tracking-[0.5em]">Empty Workspace</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-6">
                   {projects.map(p => (
-                    <div key={p.id} className="glass p-10 rounded-[3rem] border border-white/5 hover:border-white/10 transition-all group">
-                      <div className="flex items-start justify-between mb-10">
+                    <div key={p.id} className="glass p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-white/5 hover:border-white/10 transition-all group">
+                      <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 md:mb-10 gap-4">
                         <div>
-                          <h4 className="text-3xl font-black tracking-tighter text-white">{p.title}</h4>
-                          <div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mt-2">{p.genres.join(', ')} • {new Date(p.createdAt).toLocaleDateString()}</div>
+                          <h4 className="text-2xl md:text-3xl font-black tracking-tighter text-white">{p.title}</h4>
+                          <div className="text-[9px] md:text-[10px] font-bold text-zinc-600 uppercase tracking-widest mt-2">{p.genres.join(', ')} • {new Date(p.createdAt).toLocaleDateString()}</div>
                         </div>
-                        {p.metadata && <span className="text-brand font-black text-xs uppercase tracking-widest">{p.metadata.mood}</span>}
+                        {p.metadata && <span className="text-brand font-black text-[10px] md:text-xs uppercase tracking-widest self-start md:self-auto">{p.metadata.mood}</span>}
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
