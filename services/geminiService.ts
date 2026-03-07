@@ -70,6 +70,9 @@ export const getIsCloudExhausted = () => isCloudQuotaExhausted;
 export async function getFieldSuggestion(field: string, currentValue: string, context: any, action: 'new' | 'enhance' = 'new'): Promise<string> {
   const getLocal = () => {
     const baseField = field.includes('_') ? field.split('_').pop()! : field;
+    if (baseField === 'genres') return "Ambient, Synthwave";
+    if (baseField === 'vocalLangs') return "English";
+    if (baseField === 'numSongs') return "5";
     const options = LOCAL_LIBRARY[baseField] || ["New Creative Wave", "Neural Flux"];
     return options[Math.floor(Math.random() * options.length)];
   };
@@ -77,7 +80,17 @@ export async function getFieldSuggestion(field: string, currentValue: string, co
   try {
     return await callNeuralTier(async (modelName) => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-      const systemInstruction = `You are the SoundWeave Studio assistant. Return ONLY a single text suggestion for the field: ${field}. No quotes.`;
+      let systemInstruction = `You are the SoundWeave Studio assistant. Return ONLY a single text suggestion for the field: ${field}. No quotes.`;
+      
+      const baseField = field.includes('_') ? field.split('_').pop()! : field;
+      if (baseField === 'genres') {
+        systemInstruction += ` Choose 1 to 3 genres from: Ambient, Cyberpunk, Deep House, Industrial, Jazz Fusion, Lo-Fi, Neo-Classical, Orchestral, Phonk, Synthwave, Techno. Return as comma-separated list.`;
+      } else if (baseField === 'vocalLangs') {
+        systemInstruction += ` Choose 1 to 2 languages from: Instrumental, English, Japanese, French, Spanish, German, Korean. Return as comma-separated list.`;
+      } else if (baseField === 'numSongs') {
+        systemInstruction += ` Return a single number between 2 and 10.`;
+      }
+
       const promptText = action === 'enhance' && currentValue 
         ? `Enhance and improve the following "${field}": "${currentValue}". Context: ${JSON.stringify(context)}`
         : `Generate a new, creative suggestion for "${field}". Context: ${JSON.stringify(context)}`;

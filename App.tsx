@@ -166,12 +166,19 @@ const App: React.FC = () => {
         const parts = suggestionFieldId.split('_');
         const index = parseInt(parts[1]);
         const trackField = parts[2] as keyof AlbumTrack;
-        updateAlbumTrack(index, trackField, suggestedText);
+        if (trackField === 'genres' || trackField === 'vocalLangs') {
+          const parsedArray = suggestedText.split(',').map(s => s.trim()).filter(Boolean);
+          updateAlbumTrack(index, trackField, parsedArray);
+        } else {
+          updateAlbumTrack(index, trackField, suggestedText);
+        }
       } else {
         if (field === 'title') setTitle(suggestedText);
         if (field === 'prompt') setPrompt(suggestedText);
         if (field === 'lyrics') setLyrics(suggestedText);
         if (field === 'videoStyle') setVideoStyle(suggestedText);
+        if (field === 'genres') setSelectedGenres(suggestedText.split(',').map(s => s.trim()).filter(Boolean));
+        if (field === 'vocalLangs') setVocalLangs(suggestedText.split(',').map(s => s.trim()).filter(Boolean));
         if (field === 'numSongs') {
           const val = parseInt(suggestedText) || 3;
           handleNumSongsChange(val);
@@ -536,9 +543,12 @@ const App: React.FC = () => {
                       <div className="space-y-4">
                          <div className="flex justify-between items-center px-1">
                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-700">Number of Songs</label>
-                           <span className="text-brand font-black">{numSongs}</span>
+                           <div className="flex items-center gap-4">
+                             <AiSuggestButtons onSuggest={() => requestSuggestion('numSongs', numSongs.toString(), undefined, 'new')} onEnhance={() => requestSuggestion('numSongs', numSongs.toString(), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('numSongs')} suggesting={suggestingFields.has('numSongs')} exhausted={isQuotaExhausted} />
+                             <span className="text-brand font-black">{numSongs}</span>
+                           </div>
                          </div>
-                         <input type="range" min="2" max="10" step="1" value={numSongs} onChange={e => handleNumSongsChange(parseInt(e.target.value))} className="w-full h-1.5 bg-white/5 accent-brand rounded-full cursor-none appearance-none" />
+                         <input type="range" min="2" max="10" step="1" value={numSongs} onChange={e => handleNumSongsChange(parseInt(e.target.value))} className={`w-full h-1.5 bg-white/5 accent-brand rounded-full cursor-none appearance-none ${suggestingFields.has('numSongs') ? 'opacity-30' : ''}`} />
                       </div>
                     )}
                   </section>
@@ -550,8 +560,11 @@ const App: React.FC = () => {
                       </section>
 
                       <section className="space-y-6 md:space-y-8">
-                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Genre Constraints</label>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex justify-between items-center px-1">
+                          <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Genre Constraints</label>
+                          <AiSuggestButtons onSuggest={() => requestSuggestion('genres', selectedGenres.join(', '), undefined, 'new')} onEnhance={() => requestSuggestion('genres', selectedGenres.join(', '), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('genres')} suggesting={suggestingFields.has('genres')} exhausted={isQuotaExhausted} />
+                        </div>
+                        <div className={`flex flex-wrap gap-2 ${suggestingFields.has('genres') ? 'opacity-30' : ''}`}>
                           {GENRES.map(g => (
                             <button key={g} onClick={() => setSelectedGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])} className={`px-4 py-2 md:px-5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest border transition-all ${selectedGenres.includes(g) ? 'bg-brand border-brand text-white' : 'border-white/5 text-zinc-700 hover:text-zinc-400'}`}>
                               {g}
@@ -562,13 +575,22 @@ const App: React.FC = () => {
 
                       <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-6">
-                          <div className="flex items-center gap-4 mb-2">
-                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Visual synthesis</label>
-                            <button onClick={() => setVideoEnabled(!videoEnabled)} className={`w-10 h-5 rounded-full transition-all relative ${videoEnabled ? 'bg-brand' : 'bg-zinc-800'}`}>
-                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${videoEnabled ? 'left-6' : 'left-1'}`} />
-                            </button>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-4">
+                              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Visual synthesis</label>
+                              <button onClick={() => setVideoEnabled(!videoEnabled)} className={`w-10 h-5 rounded-full transition-all relative ${videoEnabled ? 'bg-brand' : 'bg-zinc-800'}`}>
+                                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${videoEnabled ? 'left-6' : 'left-1'}`} />
+                              </button>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          {videoEnabled && (
+                            <Field label="Video Style" value={videoStyle} onChange={setVideoStyle} onSuggest={() => requestSuggestion('videoStyle', videoStyle, undefined, 'new')} onEnhance={() => requestSuggestion('videoStyle', videoStyle, undefined, 'enhance')} hasAiUsed={aiUsedFields.has('videoStyle')} suggesting={suggestingFields.has('videoStyle')} exhausted={isQuotaExhausted} placeholder="e.g. Cyberpunk Neon Cityscape" />
+                          )}
+                          <div className="flex items-center justify-between mb-2 mt-6">
+                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Vocal Languages</label>
+                            <AiSuggestButtons onSuggest={() => requestSuggestion('vocalLangs', vocalLangs.join(', '), undefined, 'new')} onEnhance={() => requestSuggestion('vocalLangs', vocalLangs.join(', '), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('vocalLangs')} suggesting={suggestingFields.has('vocalLangs')} exhausted={isQuotaExhausted} />
+                          </div>
+                          <div className={`grid grid-cols-2 gap-2 ${suggestingFields.has('vocalLangs') ? 'opacity-30' : ''}`}>
                             {LANGUAGES.map(l => (
                               <button key={l} onClick={() => setVocalLangs(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])} className={`px-3 py-3 md:px-4 md:py-4 rounded-xl border text-[8px] md:text-[9px] font-black uppercase tracking-tighter transition-all ${vocalLangs.includes(l) ? 'border-brand bg-brand/5 text-white' : 'border-white/5 text-zinc-800'}`}>
                                 {l}
@@ -601,8 +623,11 @@ const App: React.FC = () => {
                               <Field label="Creative Brief" isTextArea value={track.prompt} onChange={(val: string) => updateAlbumTrack(i, 'prompt', val)} onSuggest={() => requestSuggestion('prompt', track.prompt, i, 'new')} onEnhance={() => requestSuggestion('prompt', track.prompt, i, 'enhance')} hasAiUsed={aiUsedFields.has(`albumTrack_${i}_prompt`)} suggesting={suggestingFields.has(`albumTrack_${i}_prompt`)} exhausted={isQuotaExhausted} placeholder="Describe the sonic atmosphere..." />
                               
                               <section className="space-y-6 md:space-y-8">
-                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Genre Constraints</label>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex justify-between items-center px-1">
+                                  <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">Genre Constraints</label>
+                                  <AiSuggestButtons onSuggest={() => requestSuggestion('genres', track.genres.join(', '), i, 'new')} onEnhance={() => requestSuggestion('genres', track.genres.join(', '), i, 'enhance')} hasAiUsed={aiUsedFields.has(`albumTrack_${i}_genres`)} suggesting={suggestingFields.has(`albumTrack_${i}_genres`)} exhausted={isQuotaExhausted} />
+                                </div>
+                                <div className={`flex flex-wrap gap-2 ${suggestingFields.has(`albumTrack_${i}_genres`) ? 'opacity-30' : ''}`}>
                                   {GENRES.map(g => (
                                     <button key={g} onClick={() => {
                                       const newGenres = track.genres.includes(g) ? track.genres.filter(x => x !== g) : [...track.genres, g];
@@ -616,13 +641,22 @@ const App: React.FC = () => {
 
                               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-6">
-                                  <div className="flex items-center gap-4 mb-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Visual synthesis</label>
-                                    <button onClick={() => updateAlbumTrack(i, 'videoEnabled', !track.videoEnabled)} className={`w-10 h-5 rounded-full transition-all relative ${track.videoEnabled ? 'bg-brand' : 'bg-zinc-800'}`}>
-                                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${track.videoEnabled ? 'left-6' : 'left-1'}`} />
-                                    </button>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-4">
+                                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Visual synthesis</label>
+                                      <button onClick={() => updateAlbumTrack(i, 'videoEnabled', !track.videoEnabled)} className={`w-10 h-5 rounded-full transition-all relative ${track.videoEnabled ? 'bg-brand' : 'bg-zinc-800'}`}>
+                                        <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${track.videoEnabled ? 'left-6' : 'left-1'}`} />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2">
+                                  {track.videoEnabled && (
+                                    <Field label="Video Style" value={track.videoStyle} onChange={(val: string) => updateAlbumTrack(i, 'videoStyle', val)} onSuggest={() => requestSuggestion('videoStyle', track.videoStyle, i, 'new')} onEnhance={() => requestSuggestion('videoStyle', track.videoStyle, i, 'enhance')} hasAiUsed={aiUsedFields.has(`albumTrack_${i}_videoStyle`)} suggesting={suggestingFields.has(`albumTrack_${i}_videoStyle`)} exhausted={isQuotaExhausted} placeholder="e.g. Cyberpunk Neon Cityscape" />
+                                  )}
+                                  <div className="flex items-center justify-between mb-2 mt-6">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 px-1">Vocal Languages</label>
+                                    <AiSuggestButtons onSuggest={() => requestSuggestion('vocalLangs', track.vocalLangs.join(', '), i, 'new')} onEnhance={() => requestSuggestion('vocalLangs', track.vocalLangs.join(', '), i, 'enhance')} hasAiUsed={aiUsedFields.has(`albumTrack_${i}_vocalLangs`)} suggesting={suggestingFields.has(`albumTrack_${i}_vocalLangs`)} exhausted={isQuotaExhausted} />
+                                  </div>
+                                  <div className={`grid grid-cols-2 gap-2 ${suggestingFields.has(`albumTrack_${i}_vocalLangs`) ? 'opacity-30' : ''}`}>
                                     {LANGUAGES.map(l => (
                                       <button key={l} onClick={() => {
                                         const newLangs = track.vocalLangs.includes(l) ? track.vocalLangs.filter(x => x !== l) : [...track.vocalLangs, l];
@@ -739,28 +773,32 @@ const NavItem = ({ active, onClick, icon, label, collapsed }: any) => (
   </button>
 );
 
+const AiSuggestButtons = ({ onSuggest, onEnhance, hasAiUsed, suggesting, exhausted }: any) => (
+  <div className="flex items-center gap-3">
+    {hasAiUsed ? (
+      <>
+        <button onClick={onEnhance} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-1 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/60 hover:text-brand'}`}>
+          {suggesting ? 'Processing...' : '✨ Enhance'}
+        </button>
+        <button onClick={onSuggest} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-1 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/60 hover:text-brand'}`}>
+          {suggesting ? 'Processing...' : '🔄 New'}
+        </button>
+      </>
+    ) : (
+      <button onClick={onSuggest} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-2 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/40 hover:text-brand'}`}>
+        {suggesting ? 'Processing...' : exhausted ? '📚 Neural Preset' : '✨ AI Suggest'}
+      </button>
+    )}
+  </div>
+);
+
 const Field = ({ label, value, onChange, onSuggest, onEnhance, hasAiUsed, suggesting, exhausted, isTextArea, placeholder }: any) => {
   const Component = isTextArea ? 'textarea' : 'input';
   return (
     <div className="space-y-4 group">
       <div className="flex justify-between items-center px-1">
         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-700 group-focus-within:text-brand transition-colors">{label}</label>
-        <div className="flex items-center gap-3">
-          {hasAiUsed ? (
-            <>
-              <button onClick={onEnhance} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-1 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/60 hover:text-brand'}`}>
-                {suggesting ? 'Processing...' : '✨ Enhance'}
-              </button>
-              <button onClick={onSuggest} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-1 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/60 hover:text-brand'}`}>
-                {suggesting ? 'Processing...' : '🔄 New'}
-              </button>
-            </>
-          ) : (
-            <button onClick={onSuggest} disabled={suggesting} className={`text-[9px] font-black transition-all flex items-center gap-2 ${exhausted ? 'text-amber-500/60 hover:text-amber-500' : 'text-brand/40 hover:text-brand'}`}>
-              {suggesting ? 'Processing...' : exhausted ? '📚 Neural Preset' : '✨ AI Suggest'}
-            </button>
-          )}
-        </div>
+        <AiSuggestButtons onSuggest={onSuggest} onEnhance={onEnhance} hasAiUsed={hasAiUsed} suggesting={suggesting} exhausted={exhausted} />
       </div>
       <Component 
         value={value} 
