@@ -340,8 +340,34 @@ const App: React.FC = () => {
     }
   };
 
-  if (appState === AppState.KEY_SETUP || appState === AppState.AUTH) {
-    return null; // These states are no longer used for full screen blocking
+  if (appState === AppState.KEY_SETUP) {
+    return null; // Key setup uses aistudio dialog directly
+  }
+
+  if (appState === AppState.AUTH) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-deep p-6">
+        <div className="glass w-full max-w-md p-10 rounded-[2.5rem] space-y-10 border border-white/5 shadow-2xl">
+          <div className="text-center space-y-2">
+            <h1 className="text-5xl font-black tracking-tighter text-white">SOUNDWEAVE</h1>
+            <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em]">Neural Music Studio</p>
+          </div>
+          <form onSubmit={handleAuth} className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Identity</label>
+                <input name="name" required className="w-full bg-surface border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand/50 transition-all placeholder-zinc-800" placeholder="Maestro Name" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Mobile Access</label>
+                <input name="mobile" type="tel" required className="w-full bg-surface border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-brand/50 transition-all placeholder-zinc-800" placeholder="+91 9876543210" />
+              </div>
+            </div>
+            <button type="submit" className="w-full bg-brand py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-brand/20">Initialize Workspace</button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -789,14 +815,42 @@ const App: React.FC = () => {
             </button>
           </div>
           
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
             {playingTrack.track.videoUrl ? (
-              <video 
-                src={playingTrack.track.videoUrl as string} 
-                controls 
-                autoPlay 
-                className="max-w-[90vw] max-h-[80vh] rounded-2xl shadow-2xl shadow-brand/20"
-              />
+              <div className="relative w-full max-w-4xl aspect-video rounded-3xl overflow-hidden shadow-2xl shadow-brand/20">
+                <video 
+                  src={playingTrack.track.videoUrl as string} 
+                  autoPlay 
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+                <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent flex flex-col gap-6">
+                  <audio 
+                    src={playingTrack.track.audioUrl as string} 
+                    controls 
+                    autoPlay 
+                    className="w-full"
+                  />
+                  <div className="flex gap-4 w-full">
+                    <a 
+                      href={playingTrack.track.audioUrl as string} 
+                      download={`${playingTrack.track.title}.wav`}
+                      className="flex-1 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-widest py-3 rounded-xl transition-all text-center"
+                    >
+                      Download Audio
+                    </a>
+                    <a 
+                      href={playingTrack.track.videoUrl as string} 
+                      download={`${playingTrack.track.title}_visual.mp4`}
+                      className="flex-1 bg-brand hover:brightness-110 text-white text-[10px] font-black uppercase tracking-widest py-3 rounded-xl transition-all shadow-lg shadow-brand/20 text-center"
+                    >
+                      Download Video
+                    </a>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="w-full max-w-2xl glass p-12 rounded-[3rem] flex flex-col items-center gap-12">
                 <div className="w-48 h-48 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center shadow-2xl shadow-brand/40 animate-pulse">
@@ -808,6 +862,13 @@ const App: React.FC = () => {
                   autoPlay 
                   className="w-full"
                 />
+                <a 
+                  href={playingTrack.track.audioUrl as string} 
+                  download={`${playingTrack.track.title}.wav`}
+                  className="w-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-widest py-4 rounded-xl transition-all text-center"
+                >
+                  Download Audio
+                </a>
               </div>
             )}
           </div>
