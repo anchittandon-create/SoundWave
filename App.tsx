@@ -10,7 +10,7 @@ import {
   SuggestionState
 } from './types';
 import { db } from './services/dbService';
-import { getFieldSuggestion, interpretIntent, generateVeoVideo, getIsCloudExhausted } from './services/geminiService';
+import { getFieldSuggestion, interpretIntent, generateVeoVideo, getIsCloudExhausted, generateVocals } from './services/geminiService';
 import { generateSynthesizedAudioBlob } from './services/audioService';
 
 import { combineAudioAndVideo } from './services/videoService';
@@ -336,13 +336,33 @@ const App: React.FC = () => {
         const currentVideoStyle = currentTrack ? currentTrack.videoStyle : videoStyle;
         const currentVideoPrompt = currentTrack ? currentTrack.videoPrompt : videoPrompt;
         const currentGenres = currentTrack ? currentTrack.genres : selectedGenres;
+        const currentLyrics = currentTrack ? currentTrack.lyrics : lyrics;
 
-        const audioBlob = await generateSynthesizedAudioBlob(currentDuration);
+        let vocalsBuffer: AudioBuffer | null = null;
+        if (currentLyrics && currentLyrics.trim() !== "") {
+          try {
+            const vocalsArrayBuffer = await generateVocals(currentLyrics);
+            if (vocalsArrayBuffer) {
+              const OfflineAudioContextClass = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+              const ctx = new OfflineAudioContextClass(1, 1, 44100);
+              vocalsBuffer = await ctx.decodeAudioData(vocalsArrayBuffer);
+            }
+          } catch (err) {
+            console.warn("Vocals generation failed, continuing with instrumental only.", err);
+          }
+        }
+
+        const audioBlob = await generateSynthesizedAudioBlob(currentDuration, vocalsBuffer);
         let videoBlob: any = undefined;
         if (currentVideoEnabled && !isQuotaExhausted) {
           try {
             const rawVideoBlob = await generateVeoVideo(currentVideoStyle || "Minimalist", currentGenres[0] || "Ambient", currentVideoPrompt || currentPrompt);
-            videoBlob = await combineAudioAndVideo(audioBlob, rawVideoBlob);
+            try {
+              videoBlob = await combineAudioAndVideo(audioBlob, rawVideoBlob);
+            } catch (ffmpegErr) {
+              console.warn("FFmpeg failed, returning raw video without audio.", ffmpegErr);
+              videoBlob = rawVideoBlob;
+            }
           } catch (veoErr) {
             console.warn("Video failed, continuing with audio only.", veoErr);
           }

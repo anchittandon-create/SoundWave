@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 // Track session-wide quota status to avoid unnecessary network calls
 let isCloudQuotaExhausted = false;
@@ -163,10 +163,54 @@ export async function generateVeoVideo(style: string, genre: string, prompt: str
   }
 
   const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-  const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+  if (!downloadLink) throw new Error("No video URI returned");
+  const response = await fetch(downloadLink, {
+    method: 'GET',
+    headers: {
+      'x-goog-api-key': process.env.API_KEY as string,
+    },
+  });
   if (!response.ok) throw new Error("Video Download Error");
   const rawBlob = await response.blob();
   
   // Explicitly set MIME type for cross-browser playback support
   return new Blob([rawBlob], { type: 'video/mp4' });
+}
+
+export async function generateVocals(lyrics: string): Promise<ArrayBuffer | null> {
+  if (!lyrics || lyrics.trim() === "") return null;
+  if (isCloudQuotaExhausted) return null;
+  
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Sing the following lyrics: ${lyrics}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
+    });
+    
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
+      const binaryString = window.atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+  } catch (e: any) {
+    console.warn("TTS generation failed", e);
+    if (e.message?.includes("QUOTA_EXHAUSTED") || e.status === 429) {
+      isCloudQuotaExhausted = true;
+    }
+  }
+  return null;
 }

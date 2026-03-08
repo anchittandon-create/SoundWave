@@ -4,7 +4,7 @@
  * Generates valid WAV files with layered synthesis to provide a "real" musical experience.
  */
 
-export async function generateSynthesizedAudioBlob(durationSeconds: number): Promise<Blob> {
+export async function generateSynthesizedAudioBlob(durationSeconds: number, vocalsBuffer?: AudioBuffer | null): Promise<Blob> {
   const sampleRate = 44100;
   const numChannels = 2;
   const bitsPerSample = 16;
@@ -81,6 +81,13 @@ export async function generateSynthesizedAudioBlob(durationSeconds: number): Pro
   let delayIndex = 0;
   const delayFeedback = 0.4;
   const delayMix = 0.3;
+
+  let vocalDataL: Float32Array | null = null;
+  let vocalDataR: Float32Array | null = null;
+  if (vocalsBuffer) {
+    vocalDataL = vocalsBuffer.getChannelData(0);
+    vocalDataR = vocalsBuffer.numberOfChannels > 1 ? vocalsBuffer.getChannelData(1) : vocalDataL;
+  }
 
   for (let i = 0; i < totalSamples; i++) {
     const t = i / sampleRate;
@@ -172,6 +179,16 @@ export async function generateSynthesizedAudioBlob(durationSeconds: number): Pro
     // Final Mix
     let outL = dryL + delayedL * delayMix;
     let outR = dryR + delayedR * delayMix;
+
+    // Mix Vocals
+    if (vocalsBuffer && vocalDataL && vocalDataR && i < vocalsBuffer.length) {
+      const vocalL = vocalDataL[i] || 0;
+      const vocalR = vocalDataR[i] || 0;
+      
+      // Add vocals to mix and apply a slight ducking to instrumental
+      outL = outL * 0.7 + vocalL * 1.2;
+      outR = outR * 0.7 + vocalR * 1.2;
+    }
 
     // Soft Clipping / Limiter
     outL = Math.tanh(outL);
