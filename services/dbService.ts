@@ -3,7 +3,7 @@ import { UserSession, ProjectRecord } from "../types";
 
 const SESSION_KEY = 'sw_session_v2';
 const DB_NAME = 'SoundWeaveDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_PROJECTS = 'projects';
 
 /**
@@ -27,11 +27,36 @@ class SoundWeaveDB {
         if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
           db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
         }
+        if (!db.objectStoreNames.contains('users')) {
+          db.createObjectStore('users', { keyPath: 'mobile' });
+        }
       };
     });
   }
 
   // Authentication / Session
+  async getUser(mobile: string): Promise<any> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('users', 'readonly');
+      const store = transaction.objectStore('users');
+      const request = store.get(mobile);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async saveUser(user: any): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('users', 'readwrite');
+      const store = transaction.objectStore('users');
+      const request = store.put(user);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   getSession(): UserSession | null {
     const data = localStorage.getItem(SESSION_KEY);
     return data ? JSON.parse(data) : null;

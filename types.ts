@@ -42,6 +42,14 @@ export interface TrackConfig {
   durationSeconds: number;
   videoEnabled: boolean;
   videoStyle?: string;
+  moods?: string[];
+  tempo?: number;
+  artistInspiration?: string[];
+  vocalStyle?: string;
+  structurePreference?: string;
+  energyLevel?: number;
+  creativityLevel?: number;
+  videoPrompt?: string;
 }
 
 export interface ProjectRecord {
@@ -59,6 +67,13 @@ export interface ProjectRecord {
   artistReferences: string[];
   videoEnabled: boolean;
   videoStyle?: string;
+  moods?: string[];
+  tempo?: number;
+  vocalStyle?: string;
+  structurePreference?: string;
+  energyLevel?: number;
+  creativityLevel?: number;
+  videoPrompt?: string;
   tracks: TrackData[];
   status: Status;
   createdAt: number;
