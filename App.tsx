@@ -13,6 +13,8 @@ import { db } from './services/dbService';
 import { getFieldSuggestion, interpretIntent, generateVeoVideo, getIsCloudExhausted } from './services/geminiService';
 import { generateSynthesizedAudioBlob } from './services/audioService';
 
+import { combineAudioAndVideo } from './services/videoService';
+
 const GENRES = ["Ambient", "Cyberpunk", "Deep House", "Industrial", "Jazz Fusion", "Lo-Fi", "Neo-Classical", "Orchestral", "Phonk", "Synthwave", "Techno"];
 const LANGUAGES = ["Instrumental", "English", "Japanese", "French", "Spanish", "German", "Korean"];
 
@@ -283,9 +285,10 @@ const App: React.FC = () => {
         let videoBlob: any = undefined;
         if (currentVideoEnabled && !isQuotaExhausted) {
           try {
-            videoBlob = await generateVeoVideo(currentVideoStyle || "Minimalist", currentGenres[0] || "Ambient", currentPrompt);
+            const rawVideoBlob = await generateVeoVideo(currentVideoStyle || "Minimalist", currentGenres[0] || "Ambient", currentPrompt);
+            videoBlob = await combineAudioAndVideo(audioBlob, rawVideoBlob);
           } catch (veoErr) {
-            console.warn("Video failed, continuing with audio only.");
+            console.warn("Video failed, continuing with audio only.", veoErr);
           }
         }
 
