@@ -609,9 +609,8 @@ const App: React.FC = () => {
                         <MultiSelectWithCustom label="Moods" options={["Dark", "Epic", "Energetic", "Melancholic", "Hypnotic", "Dreamy", "Atmospheric", "Aggressive", "Industrial", "Futuristic"]} selected={moods} onChange={setMoods} onSuggest={() => requestSuggestion('moods', moods.join(', '), undefined, 'new')} onEnhance={() => requestSuggestion('moods', moods.join(', '), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('moods')} suggesting={suggestingFields.has('moods')} exhausted={isQuotaExhausted} />
                       </section>
 
-                      <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <section className="grid grid-cols-1 gap-8">
                         <RangeSlider label="Tempo Range" min={60} max={200} value={tempo} onChange={setTempo} unit="BPM" onSuggest={() => requestSuggestion('tempo', tempo.toString(), undefined, 'new')} onEnhance={() => requestSuggestion('tempo', tempo.toString(), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('tempo')} suggesting={suggestingFields.has('tempo')} exhausted={isQuotaExhausted} />
-                        <SelectWithCustom label="Duration" options={["30 sec", "1 min", "2 min", "3 min", "4 min", "5 min", "10 min"]} selected={duration === 30 ? "30 sec" : `${duration / 60} min`} onChange={(v: string) => setDuration(v.includes('sec') ? parseInt(v) : parseInt(v) * 60)} onSuggest={() => requestSuggestion('duration', duration.toString(), undefined, 'new')} onEnhance={() => requestSuggestion('duration', duration.toString(), undefined, 'enhance')} hasAiUsed={aiUsedFields.has('duration')} suggesting={suggestingFields.has('duration')} exhausted={isQuotaExhausted} />
                       </section>
 
                       <section className="space-y-8 md:space-y-10">
